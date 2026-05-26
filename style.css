@@ -1,0 +1,25 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;color:#f4f7ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;background:radial-gradient(circle at 20% 10%,rgba(55,75,135,.25),transparent 32%),radial-gradient(circle at 80% 75%,rgba(95,20,110,.20),transparent 35%),#020205}
+#top,#bottom{position:fixed;left:0;right:0;z-index:2;background:rgba(2,2,5,.92);border-color:#1d2335;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#top{top:0;border-bottom:1px solid #1d2335}
+#bottom{bottom:0;border-top:1px solid #1d2335}
+h1{font-size:18px;margin:0 12px 0 0}
+button,select{background:#111827;color:#f4f7ff;border:1px solid #334155;border-radius:10px;padding:7px 10px;cursor:pointer}
+button.active{border-color:#7dd3fc}
+button.running{border-color:#facc15}
+label{font-size:12px;color:#a9b0c2;white-space:nowrap}
+.smallrange{width:108px}.tinyrange{width:90px}.value{color:#dbeafe;font-size:12px;min-width:26px;display:inline-block}
+.group{display:flex;gap:6px;align-items:center;flex-wrap:wrap;border:1px solid #263044;border-radius:12px;padding:5px 8px;background:rgba(15,23,42,.55)}
+.group-title{font-size:11px;color:#dbeafe;font-weight:700}
+#hud,#info{position:fixed;z-index:1;background:rgba(9,10,16,.86);border:1px solid #20263a;border-radius:18px;padding:12px 14px}
+#hud{top:72px;left:14px;max-width:980px;color:#a9b0c2;font-size:13px;pointer-events:none}
+#hud b{color:white}
+#info{top:72px;right:14px;width:380px;max-width:calc(100vw - 28px);max-height:calc(100vh - 150px);overflow:auto}
+#info h2{font-size:34px;margin:2px 0}
+.eyebrow{color:#7dd3fc;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.status{color:#a9b0c2;margin-bottom:10px}
+.detail{display:grid;grid-template-columns:128px 1fr;gap:10px;border-top:1px solid rgba(255,255,255,.08);padding:7px 0;font-size:14px}
+.detail span:first-child{color:#a9b0c2;font-size:12px}
+.mode{display:flex;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,255,255,.08);padding:7px 0;font-size:14px}
+.line{display:inline-block;width:24px;height:3px;border-radius:99px;margin:0 4px;vertical-align:middle}
+@media(max-width:850px){#info{top:auto;bottom:116px;left:14px;right:14px;width:auto;max-height:230px}#bottom{display:grid;grid-template-columns:1fr}}
