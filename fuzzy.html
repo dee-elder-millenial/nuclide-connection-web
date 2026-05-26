@@ -7,41 +7,50 @@
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#020205;color:#f4f7ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
 iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205;transform-origin:center center;transition:filter .12s linear}
-#fuzzPanel{position:fixed;z-index:10;left:14px;bottom:14px;background:rgba(9,10,16,.88);border:1px solid #263044;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 28px rgba(0,0,0,.35)}
-label{font-size:12px;color:#a9b0c2;white-space:nowrap}input[type=range]{width:140px}.value{color:#dbeafe;font-size:12px;min-width:40px;display:inline-block}a{color:#7dd3fc;text-decoration:none;font-size:12px}button{background:#111827;color:#f4f7ff;border:1px solid #334155;border-radius:10px;padding:7px 10px;cursor:pointer}
+#fuzzPanel{position:fixed;z-index:10;right:14px;top:14px;width:310px;max-width:calc(100vw - 28px);background:rgba(9,10,16,.9);border:1px solid #263044;border-radius:16px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+#bar{display:flex;gap:8px;align-items:center;justify-content:space-between}#body{display:grid;gap:8px;margin-top:8px}.collapsed #body{display:none}.title{font-weight:700;font-size:13px}.hint{font-size:11px;color:#a9b0c2;line-height:1.35}
+label{font-size:12px;color:#a9b0c2;white-space:nowrap;display:flex;align-items:center;gap:8px;justify-content:space-between}input[type=range]{width:155px}.value{color:#dbeafe;font-size:12px;min-width:42px;display:inline-block;text-align:right}a{color:#7dd3fc;text-decoration:none;font-size:12px}button{background:#111827;color:#f4f7ff;border:1px solid #334155;border-radius:10px;padding:6px 9px;cursor:pointer}.row{display:flex;gap:8px;align-items:center;justify-content:space-between}.off{opacity:.65}
 </style>
 </head>
 <body>
 <iframe id="viewer" src="index.html"></iframe>
 <div id="fuzzPanel">
-  <label><input id="enabled" type="checkbox" checked> Fuzz</label>
-  <label>Blur <input id="blur" type="range" min="0" max="12" step="0.25" value="2.25"></label><span id="blurText" class="value">2.25</span>
-  <label>Glow <input id="glow" type="range" min="0" max="32" step="1" value="10"></label><span id="glowText" class="value">10</span>
-  <label>Brightness <input id="bright" type="range" min="70" max="135" step="1" value="106"></label><span id="brightText" class="value">106%</span>
-  <button id="reset">Reset fuzz</button>
-  <a href="index.html">normal view</a>
+  <div id="bar"><span class="title">Whole-scene fuzz</span><button id="collapse">Hide controls</button></div>
+  <div id="body">
+    <div class="hint">This test page blurs the whole viewer. True depth fuzz has to be added inside the canvas renderer in index.html.</div>
+    <label><span><input id="enabled" type="checkbox" checked> Fuzz enabled</span><span id="stateText" class="value">on</span></label>
+    <label>Blur <input id="blur" type="range" min="0" max="12" step="0.25" value="2.25"><span id="blurText" class="value">2.25</span></label>
+    <label>Glow <input id="glow" type="range" min="0" max="32" step="1" value="10"><span id="glowText" class="value">10</span></label>
+    <label>Brightness <input id="bright" type="range" min="70" max="135" step="1" value="106"><span id="brightText" class="value">106%</span></label>
+    <div class="row"><button id="reset">Reset fuzz</button><a href="index.html">normal view</a></div>
+    <div class="hint">Keyboard: F toggles fuzz. The controls stay available even when fuzz is off.</div>
+  </div>
 </div>
 <script>
 const viewer=document.getElementById('viewer');
+const panel=document.getElementById('fuzzPanel');
 const enabled=document.getElementById('enabled');
 const blur=document.getElementById('blur');
 const glow=document.getElementById('glow');
 const bright=document.getElementById('bright');
+const collapse=document.getElementById('collapse');
 const blurText=document.getElementById('blurText');
 const glowText=document.getElementById('glowText');
 const brightText=document.getElementById('brightText');
+const stateText=document.getElementById('stateText');
 function apply(){
   blurText.textContent=Number(blur.value).toFixed(2);
   glowText.textContent=glow.value;
   brightText.textContent=bright.value+'%';
+  stateText.textContent=enabled.checked?'on':'off';
+  panel.classList.toggle('off',!enabled.checked);
   if(!enabled.checked){viewer.style.filter='none';return;}
-  const b=blur.value;
-  const g=glow.value;
-  const br=bright.value;
+  const b=blur.value,g=glow.value,br=bright.value;
   viewer.style.filter=`blur(${b}px) brightness(${br}%) drop-shadow(0 0 ${g}px rgba(125,211,252,.28)) drop-shadow(0 0 ${Math.round(g*1.8)}px rgba(255,80,240,.16))`;
 }
 [enabled,blur,glow,bright].forEach(el=>el.addEventListener('input',apply));
 reset.onclick=()=>{enabled.checked=true;blur.value=2.25;glow.value=10;bright.value=106;apply();};
+collapse.onclick=()=>{panel.classList.toggle('collapsed');collapse.textContent=panel.classList.contains('collapsed')?'Show controls':'Hide controls';};
 window.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='f'){enabled.checked=!enabled.checked;apply();}});
 apply();
 </script>
