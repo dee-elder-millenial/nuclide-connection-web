@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nuclide Connection Web - Fuzzy View</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;color:#f4f7ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205;transform-origin:center center;transition:filter .12s linear}
+#fuzzPanel{position:fixed;z-index:10;left:14px;bottom:14px;background:rgba(9,10,16,.88);border:1px solid #263044;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+label{font-size:12px;color:#a9b0c2;white-space:nowrap}input[type=range]{width:140px}.value{color:#dbeafe;font-size:12px;min-width:40px;display:inline-block}a{color:#7dd3fc;text-decoration:none;font-size:12px}button{background:#111827;color:#f4f7ff;border:1px solid #334155;border-radius:10px;padding:7px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<iframe id="viewer" src="index.html"></iframe>
+<div id="fuzzPanel">
+  <label><input id="enabled" type="checkbox" checked> Fuzz</label>
+  <label>Blur <input id="blur" type="range" min="0" max="12" step="0.25" value="2.25"></label><span id="blurText" class="value">2.25</span>
+  <label>Glow <input id="glow" type="range" min="0" max="32" step="1" value="10"></label><span id="glowText" class="value">10</span>
+  <label>Brightness <input id="bright" type="range" min="70" max="135" step="1" value="106"></label><span id="brightText" class="value">106%</span>
+  <button id="reset">Reset fuzz</button>
+  <a href="index.html">normal view</a>
+</div>
+<script>
+const viewer=document.getElementById('viewer');
+const enabled=document.getElementById('enabled');
+const blur=document.getElementById('blur');
+const glow=document.getElementById('glow');
+const bright=document.getElementById('bright');
+const blurText=document.getElementById('blurText');
+const glowText=document.getElementById('glowText');
+const brightText=document.getElementById('brightText');
+function apply(){
+  blurText.textContent=Number(blur.value).toFixed(2);
+  glowText.textContent=glow.value;
+  brightText.textContent=bright.value+'%';
+  if(!enabled.checked){viewer.style.filter='none';return;}
+  const b=blur.value;
+  const g=glow.value;
+  const br=bright.value;
+  viewer.style.filter=`blur(${b}px) brightness(${br}%) drop-shadow(0 0 ${g}px rgba(125,211,252,.28)) drop-shadow(0 0 ${Math.round(g*1.8)}px rgba(255,80,240,.16))`;
+}
+[enabled,blur,glow,bright].forEach(el=>el.addEventListener('input',apply));
+reset.onclick=()=>{enabled.checked=true;blur.value=2.25;glow.value=10;bright.value=106;apply();};
+window.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='f'){enabled.checked=!enabled.checked;apply();}});
+apply();
+</script>
+</body>
+</html>
