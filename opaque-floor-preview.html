@@ -1,31 +1,31 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}#build{position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="build">B8Q2</div><div id="note"><b>Preview B8Q2:</b> floor uses a solid slab under the colored cells.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const badge=d.createElement('div');badge.textContent='B8Q2';badge.style.cssText='position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em;pointer-events:none';d.body.appendChild(badge);const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}#build{position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="build">C4N7</div><div id="note"><b>Preview C4N7:</b> depth occlusion attempt for the Z/N floor.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const badge=d.createElement('div');badge.textContent='C4N7';badge.style.cssText='position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em;pointer-events:none';d.body.appendChild(badge);const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
 if(!window.__opaqueFloorPatch){
   window.__opaqueFloorPatch=true;
   const hm=document.getElementById('heightMode');
   if(hm&&hm.parentNode){for(const n of [...hm.parentNode.childNodes]){if(n.nodeType===3&&n.nodeValue.includes('Height'))n.nodeValue=n.nodeValue.replace('Height','Display');}}
+  let floorPoly=null;
+  function pointInPoly(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){let xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi+1e-9)+xi))inside=!inside;}return inside;}
+  function planeDepthAtScreen(sxScreen,syScreen){let zoom=S.zoom||1,y2=(syScreen-c.clientHeight/2-S.panY)/zoom,sx=Math.sin(S.rx),cx=Math.cos(S.rx);if(Math.abs(sx)<1e-5)return -Infinity;let z1=-y2/sx;return z1*cx;}
+  function occludedByFloorPoint(p){if(!S.showFloor||!floorPoly||!pointInPoly(p.x,p.y,floorPoly))return false;let pd=planeDepthAtScreen(p.x,p.y);return p.depth < pd-0.5;}
+  function occludedNode(n){return occludedByFloorPoint({x:n.sx,y:n.sy,depth:n.depth});}
+  function occludedLink(l){let mx=(l.a.sx+l.b.sx)/2,my=(l.a.sy+l.b.sy)/2,md=(l.a.depth+l.b.depth)/2;return occludedByFloorPoint({x:mx,y:my,depth:md});}
   function drawSolidFloorSlab(){
-    if(!S.showFloor)return;
+    if(!S.showFloor){floorPoly=null;return;}
     let cells=S.nodes.filter(visible);
-    if(!cells.length)return;
-    let minX=Math.min(...cells.map(n=>n.x-S.zScale*.48));
-    let maxX=Math.max(...cells.map(n=>n.x+S.zScale*.48));
-    let minZ=Math.min(...cells.map(n=>n.z-S.nScale*.48));
-    let maxZ=Math.max(...cells.map(n=>n.z+S.nScale*.48));
-    const pts=[projectObj({x:minX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:maxZ}),projectObj({x:minX,y:0,z:maxZ})];
-    ctx.save();
-    ctx.globalCompositeOperation='source-over';
-    ctx.globalAlpha=1;
-    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.closePath();
-    ctx.fillStyle='#050713';ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=1.25;ctx.stroke();
-    ctx.restore();
+    if(!cells.length){floorPoly=null;return;}
+    let minX=Math.min(...cells.map(n=>n.x-S.zScale*.5)),maxX=Math.max(...cells.map(n=>n.x+S.zScale*.5));
+    let minZ=Math.min(...cells.map(n=>n.z-S.nScale*.5)),maxZ=Math.max(...cells.map(n=>n.z+S.nScale*.5));
+    floorPoly=[projectObj({x:minX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:maxZ}),projectObj({x:minX,y:0,z:maxZ})];
+    ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+    ctx.beginPath();ctx.moveTo(floorPoly[0].x,floorPoly[0].y);for(let i=1;i<floorPoly.length;i++)ctx.lineTo(floorPoly[i].x,floorPoly[i].y);ctx.closePath();
+    ctx.fillStyle='#050713';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.36)';ctx.lineWidth=1.4;ctx.stroke();ctx.restore();
   }
   function drawOpaqueFloorOnly(){
     if(!S.showFloor)return;
     drawSolidFloorSlab();
     let cells=S.nodes.filter(visible).sort((a,b)=>a.N-b.N||a.Z-b.Z);
     ctx.save();ctx.lineJoin='round';ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-    for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.30)',1);
+    for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.32)',1);
     ctx.restore();
   }
   drawZNFloorMap=function(){drawOpaqueFloorOnly();drawSelectedColumn();};
@@ -36,8 +36,12 @@ if(!window.__opaqueFloorPatch){
     S.hover=closest(S.lastX,S.lastY);S.hoverReaction=closestReaction(S.lastX,S.lastY);
     ctx.clearRect(0,0,c.clientWidth,c.clientHeight);
     drawAxes();
+    floorPoly=null;
+    drawSolidFloorSlab();
+    ctx.clearRect(0,0,c.clientWidth,c.clientHeight);
+    drawAxes();
     if(S.showLines){
-      for(let l of S.links.filter(linkVisible)){
+      for(let l of S.links.filter(linkVisible).filter(l=>!occludedLink(l))){
         ctx.strokeStyle=rgba(lineRGB(l.type),l.type==='isotope'?.28:.74);
         ctx.lineWidth=l.type==='isotope'?1.1:(l.type==='proton'||l.type==='neutron'||l.type==='delayed'?2.4:3);
         ctx.setLineDash(l.type==='delayed'?[7,5]:[]);
@@ -48,7 +52,7 @@ if(!window.__opaqueFloorPatch){
     }
     drawOpaqueFloorOnly();
     drawSelectedColumn();
-    let drawNodes=S.nodes.filter(visible).sort((a,b)=>a.depth-b.depth);
+    let drawNodes=S.nodes.filter(visible).filter(n=>!occludedNode(n)).sort((a,b)=>a.depth-b.depth);
     if(S.showDots)for(let n of drawNodes){let r=Math.max(3,Math.min(13,n.rad()*S.zoom));ctx.fillStyle=nodeColor(n);ctx.beginPath();ctx.arc(n.sx,n.sy,r,0,7);ctx.fill();if(n===S.sel||n===S.hover){ctx.strokeStyle='white';ctx.lineWidth=2;ctx.beginPath();ctx.arc(n.sx,n.sy,r+5,0,7);ctx.stroke();}}
     if(S.showDots&&S.linkTypes.fusion&&S.fusionMode==='nodes')drawReactionNodes();
     if(S.labels)for(let n of drawNodes){let act=n===S.sel||n===S.hover;ctx.font=`${act?'700':'400'} ${act?15:10}px system-ui`;ctx.textAlign='center';ctx.fillStyle=act?'white':'rgba(215,215,215,.92)';ctx.fillText(n.label(),n.sx,n.sy-(act?21:15));}
