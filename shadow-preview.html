@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="notice"><b>white-shadow branch</b> · experimental Z/N floor map + depth shadows</div>
+<div id="notice"><b>white-shadow branch</b> · experimental Z/N floor map + spherical nodes</div>
 <script>
 const frame=document.getElementById('frame');
 function patchShadowPreview(){
@@ -91,17 +91,6 @@ function patchShadowPreview(){
           const pts=projectCellCorners(n);
           drawCell(ctx,pts,planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
         }
-        for(const n of cells){
-          if(n.stable)continue;
-          const top=projectObj({x:n.x,y:n.y,z:n.z});
-          const base=projectObj({x:n.x,y:0,z:n.z});
-          ctx.strokeStyle='rgba(15,23,42,.18)';
-          ctx.lineWidth=1;
-          ctx.beginPath();
-          ctx.moveTo(base.x,base.y);
-          ctx.lineTo(top.x,top.y);
-          ctx.stroke();
-        }
         ctx.restore();
       }
       drawAxes=function(){
@@ -136,6 +125,17 @@ function patchShadowPreview(){
       this.fillStyle='rgba(15,23,42,.78)';
       this.beginPath();
       this.ellipse(arc.x+offsetX,arc.y+offsetY,arc.r*1.7,arc.r*.78,0,0,Math.PI*2);
+      originalFill.call(this);
+      this.restore();
+      this.save();
+      const grad=this.createRadialGradient(arc.x-arc.r*.35,arc.y-arc.r*.45,Math.max(1,arc.r*.15),arc.x,arc.y,arc.r*1.08);
+      grad.addColorStop(0,'rgba(255,255,255,.82)');
+      grad.addColorStop(.48,'rgba(255,255,255,.08)');
+      grad.addColorStop(1,'rgba(0,0,0,.22)');
+      this.globalCompositeOperation='source-atop';
+      this.fillStyle=grad;
+      this.beginPath();
+      this.arc(arc.x,arc.y,arc.r,0,Math.PI*2);
       originalFill.call(this);
       this.restore();
     }
