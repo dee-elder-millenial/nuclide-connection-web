@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes">
+<title>H.A.N.K. Floor Map Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205}
+#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}
+#note b{color:#7dd3fc}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="note"><b>Preview:</b> projected Z/N floor map under the nodes</div>
+<script>
+const frame=document.getElementById('frame');
+function installFloor(){
+  const doc=frame.contentDocument;
+  if(!doc||doc.getElementById('floor-map-patch'))return;
+  const script=doc.createElement('script');
+  script.id='floor-map-patch';
+  script.textContent=`
+    if(!window.__floorMapPatch){
+      window.__floorMapPatch=true;
+      const previousDrawAxes=drawAxes;
+      function floorColor(n){
+        const level=n.stable?0:instability(n);
+        return 'hsl('+(275*level)+' 88% '+(n.stable?48:54)+'%)';
+      }
+      function floorCell(n){
+        const hx=S.zScale*.42;
+        const hz=S.nScale*.42;
+        const y=0;
+        return [
+          projectObj({x:n.x-hx,y:y,z:n.z-hz}),
+          projectObj({x:n.x+hx,y:y,z:n.z-hz}),
+          projectObj({x:n.x+hx,y:y,z:n.z+hz}),
+          projectObj({x:n.x-hx,y:y,z:n.z+hz})
+        ];
+      }
+      function drawOneFloorCell(pts,fill,alpha){
+        ctx.save();
+        ctx.globalAlpha=alpha;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x,pts[0].y);
+        for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle=fill;
+        ctx.fill();
+        ctx.globalAlpha=Math.min(1,alpha+.16);
+        ctx.strokeStyle='rgba(255,255,255,.16)';
+        ctx.lineWidth=1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function drawFloorMap(){
+        const cells=S.nodes.filter(n=>visible(n)).sort((a,b)=>a.N-b.N||a.Z-b.Z);
+        ctx.save();
+        ctx.lineJoin='round';
+        for(const n of cells){
+          drawOneFloorCell(floorCell(n),floorColor(n),n.stable?.46:.36);
+        }
+        ctx.restore();
+      }
+      drawAxes=function(){
+        drawFloorMap();
+        previousDrawAxes();
+      };
+    }
+  `;
+  doc.body.appendChild(script);
+}
+frame.addEventListener('load',()=>[100,500,1200,2200].forEach(t=>setTimeout(installFloor,t)));
+</script>
+</body>
+</html>
