@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="note"><b>Preview:</b> Auto Orbit added. Click Auto Orbit to start; Stop Auto Orbit to stop.</div>
+<div id="note"><b>Preview:</b> Auto Orbit centers on the open workspace, not hidden panels.</div>
 <script>
 const frame=document.getElementById('frame');
 function installAutoOrbit(){
@@ -29,6 +29,36 @@ function installAutoOrbit(){
       btn.textContent='Auto Orbit';
       const orbitBtn=document.getElementById('orbit');
       if(orbitBtn&&orbitBtn.parentNode)orbitBtn.parentNode.insertBefore(btn,orbitBtn.nextSibling);
+
+      function rectOf(el){
+        if(!el)return null;
+        const r=el.getBoundingClientRect();
+        if(!r||r.width<=0||r.height<=0)return null;
+        return r;
+      }
+
+      function openWorkspaceCenter(){
+        const pad=14;
+        let left=pad;
+        let top=pad;
+        let right=c.clientWidth-pad;
+        let bottom=c.clientHeight-pad;
+        const topR=rectOf(document.getElementById('top'));
+        const hudR=rectOf(document.getElementById('hud'));
+        const infoR=rectOf(document.getElementById('info'));
+        const bottomR=rectOf(document.getElementById('bottom'));
+        if(topR)top=Math.max(top,topR.bottom+pad);
+        if(hudR&&hudR.left<right&&hudR.right>left&&hudR.top<bottom&&hudR.bottom>top)left=Math.max(left,hudR.right+pad);
+        if(infoR&&infoR.left<right&&infoR.right>left&&infoR.top<bottom&&infoR.bottom>top)right=Math.min(right,infoR.left-pad);
+        if(bottomR&&bottomR.left<right&&bottomR.right>left&&bottomR.top<bottom&&bottomR.bottom>top){
+          if(bottomR.left<c.clientWidth*.55)left=Math.max(left,bottomR.right+pad);
+          else right=Math.min(right,bottomR.left-pad);
+        }
+        if(right-left<160){left=pad;right=c.clientWidth-pad;if(infoR)right=Math.min(right,infoR.left-pad);}
+        if(bottom-top<140){top=topR?topR.bottom+pad:pad;bottom=c.clientHeight-pad;}
+        return {x:(left+right)/2,y:(top+bottom)/2,left,top,right,bottom};
+      }
+
       function planePointAtScreen(screenX,screenY){
         const zoom=S.zoom||1;
         const x1=(screenX-c.clientWidth/2-S.panX)/zoom;
@@ -38,8 +68,9 @@ function installAutoOrbit(){
         return {x:x1*cy-z1*sy,y:0,z:x1*sy+z1*cy};
       }
       function startAutoOrbit(){
+        const center=openWorkspaceCenter();
         S.autoOrbit=true;
-        S.autoPivot=planePointAtScreen(c.clientWidth/2,c.clientHeight/2);
+        S.autoPivot=planePointAtScreen(center.x,center.y);
         btn.textContent='Stop Auto Orbit';
         btn.classList.add('active');
       }
@@ -50,9 +81,12 @@ function installAutoOrbit(){
       }
       function autoOrbitStep(){
         if(S.autoOrbit&&S.autoPivot){
+          const center=openWorkspaceCenter();
           const before=projectObj(S.autoPivot);
           S.ry+=0.006;
-          keepWorldPointAtScreen(S.autoPivot,before);
+          const after=projectObj(S.autoPivot);
+          S.panX+=center.x-after.x;
+          S.panY+=center.y-after.y;
         }
         requestAnimationFrame(autoOrbitStep);
       }
