@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes" />
+<title>H.A.N.K. Shadow Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#f8fafc}
+#notice{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(255,255,255,.9);color:#0f172a;border:1px solid rgba(15,23,42,.18);border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(15,23,42,.18);backdrop-filter:blur(8px)}
+#notice b{color:#020617}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="notice"><b>white-shadow branch</b> · experimental canvas depth shadows</div>
+<script>
+const frame=document.getElementById('frame');
+function patchShadowPreview(){
+  const doc=frame.contentDocument;
+  const win=frame.contentWindow;
+  if(!doc||!win)return;
+  if(!doc.getElementById('white-shadow-style')){
+    const style=doc.createElement('style');
+    style.id='white-shadow-style';
+    style.textContent=`
+      html,body{background:#f8fafc!important;color:#0f172a!important;}
+      canvas#c{background:radial-gradient(circle at 18% 8%,rgba(191,219,254,.55),transparent 34%),radial-gradient(circle at 82% 78%,rgba(221,214,254,.45),transparent 36%),#f8fafc!important;}
+      #top,#bottom,#hud,#info{background:rgba(255,255,255,.88)!important;border-color:rgba(15,23,42,.18)!important;color:#0f172a!important;box-shadow:0 12px 36px rgba(15,23,42,.13)!important;}
+      button,select{background:#ffffff!important;color:#0f172a!important;border-color:#94a3b8!important;}
+      button.active{border-color:#0284c7!important;box-shadow:0 0 0 1px rgba(2,132,199,.35) inset!important;}
+      label,.status,.detail span:first-child,.map-help,.map-title span:last-child,#hud{color:#475569!important;}
+      h1,#info h2,.detail span:last-child,.mode b,.map-help b{color:#0f172a!important;}
+      .eyebrow,.group-title,details.group summary,.value{color:#0369a1!important;}
+      .group{background:rgba(241,245,249,.82)!important;border-color:rgba(15,23,42,.18)!important;}
+      #miniMap{background:#f1f5f9!important;border-color:rgba(15,23,42,.22)!important;}
+    `;
+    doc.head.appendChild(style);
+  }
+  if(win.__hankShadowPreviewPatch)return;
+  win.__hankShadowPreviewPatch=true;
+  const proto=win.CanvasRenderingContext2D.prototype;
+  const originalArc=proto.arc;
+  const originalFill=proto.fill;
+  const originalFillText=proto.fillText;
+  const originalBeginPath=proto.beginPath;
+  proto.beginPath=function(){this.__hankLastArc=null;return originalBeginPath.apply(this,arguments)};
+  proto.arc=function(x,y,r,s,e,ccw){
+    this.__hankLastArc={x,y,r};
+    return originalArc.apply(this,arguments);
+  };
+  proto.fill=function(){
+    const arc=this.__hankLastArc;
+    const canvasId=this.canvas&&this.canvas.id;
+    const fill=String(this.fillStyle||'');
+    const looksLikeNuclideCircle=canvasId==='c'&&arc&&arc.r>=2.5&&arc.r<=18&&(fill.startsWith('hsl(')||fill.startsWith('#')||fill.startsWith('rgb'));
+    if(looksLikeNuclideCircle){
+      const cw=this.canvas.clientWidth||this.canvas.width;
+      const centerBias=(arc.x-cw/2)/(cw/2||1);
+      const pseudoDepth=Math.max(0,Math.min(1,(centerBias+1)/2));
+      const offsetX=10+centerBias*16;
+      const offsetY=12+pseudoDepth*10;
+      const blur=3+pseudoDepth*11;
+      const alpha=.10+pseudoDepth*.20;
+      this.save();
+      this.filter=`blur(${blur}px)`;
+      this.globalAlpha=alpha;
+      this.fillStyle='rgba(15,23,42,.78)';
+      this.beginPath();
+      this.ellipse(arc.x+offsetX,arc.y+offsetY,arc.r*1.7,arc.r*.78,0,0,Math.PI*2);
+      originalFill.call(this);
+      this.restore();
+    }
+    return originalFill.apply(this,arguments);
+  };
+  proto.fillText=function(text,x,y,maxWidth){
+    const canvasId=this.canvas&&this.canvas.id;
+    const oldFill=this.fillStyle;
+    const labelLike=/^[A-Z][a-z]?-\d+$/.test(String(text));
+    const axisLike=['Z →','N into screen','less stable ↑','Z','N'].includes(String(text));
+    if(canvasId==='c'&&(labelLike||axisLike))this.fillStyle='#0f172a';
+    if(canvasId==='miniMap'&&axisLike)this.fillStyle='#0f172a';
+    const result=arguments.length>3?originalFillText.call(this,text,x,y,maxWidth):originalFillText.call(this,text,x,y);
+    this.fillStyle=oldFill;
+    return result;
+  };
+}
+frame.addEventListener('load',()=>{setTimeout(patchShadowPreview,100);setTimeout(patchShadowPreview,500);setTimeout(patchShadowPreview,1200);});
+</script>
+</body>
+</html>
