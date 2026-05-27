@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes">
+<title>H.A.N.K. Decay Energy Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205}
+#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}
+#note b{color:#7dd3fc}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="note"><b>Preview:</b> info window includes estimated decay Q-values</div>
+<script>
+const frame=document.getElementById('frame');
+function installEnergyPatch(){
+  const doc=frame.contentDocument;
+  if(!doc||doc.getElementById('decay-energy-patch'))return;
+  const script=doc.createElement('script');
+  script.id='decay-energy-patch';
+  script.textContent=`
+    if(!window.__decayEnergyPatch){
+      window.__decayEnergyPatch=true;
+      const UMEV=931.49410242;
+      const E_U=0.000548579909065*1e6;
+      const N_U=1.00866491595*1e6;
+      const H_U=1.007825031898*1e6;
+      const HE4_U=4.00260325413*1e6;
+      const massByKey=new Map();
+      function microMass(v){const n=Number(v);return isFinite(n)?(n<1000?n*1e6:n):NaN;}
+      function key(Z,N){return Z+','+N;}
+      function cleanEnergyMode(m){return String(m||'').toLowerCase().replace(/β/g,'b').replace(/\\s+/g,'');}
+      function massOfZN(Z,N){return massByKey.get(key(Z,N));}
+      function mev(deltaMicroU){return deltaMicroU/1e6*UMEV;}
+      function fmtMeV(q){if(!isFinite(q))return '';return (Math.abs(q)<1?q.toFixed(3):q.toFixed(2))+' MeV';}
+      function qCalc(parent,Z,N,extraMicroU){const mp=massOfZN(parent.Z,parent.N),md=massOfZN(Z,N);if(!isFinite(mp)||!isFinite(md))return null;return mev(mp-md-(extraMicroU||0));}
+      function energyForMode(n,mode){
+        const d=cleanEnergyMode(mode);
+        const out=[];
+        function add(label,Z,N,extra){const q=qCalc(n,Z,N,extra);if(q!==null&&isFinite(q))out.push(label+' '+fmtMeV(q));}
+        if(!d||d==='stable')return '';
+        if(d.includes('b+p'))add('β+p Q≈',n.Z-2,n.N+1,H_U+2*E_U);
+        else if(d.includes('b+a'))add('β+α Q≈',n.Z-3,n.N-1,HE4_U+2*E_U);
+        else if(d.includes('b-2n'))add('β−2n Q≈',n.Z+1,n.N-3,2*N_U);
+        else if(d.includes('b-n'))add('β−n Q≈',n.Z+1,n.N-2,N_U);
+        else if(d.includes('b-a'))add('β−α Q≈',n.Z-1,n.N-3,HE4_U);
+        else if(d.includes('b-p'))add('β−p Q≈',n.Z,n.N-1,H_U);
+        else if(d==='2p')add('2p Q≈',n.Z-2,n.N,2*H_U);
+        else if(d==='p')add('p Q≈',n.Z-1,n.N,H_U);
+        else if(d==='2n')add('2n Q≈',n.Z,n.N-2,2*N_U);
+        else if(d==='n')add('n Q≈',n.Z,n.N-1,N_U);
+        else if(d==='a'||d==='alpha')add('α Q≈',n.Z-2,n.N-2,HE4_U);
+        else {
+          if(d.includes('ec'))add('EC Q≈',n.Z-1,n.N+1,0);
+          if(d.includes('b+')||d.includes('beta+'))add('β+ Q≈',n.Z-1,n.N+1,2*E_U);
+          if(d.includes('b-')||d.includes('beta-'))add('β− Q≈',n.Z+1,n.N-1,0);
+        }
+        return out.join(' · ');
+      }
+      function energyRows(n){
+        if(!n||n.stable)return '';
+        return (n.modes||[]).map(m=>{
+          const e=energyForMode(n,m.mode);
+          if(!e)return '';
+          return '<div class="mode"><b>'+esc(m.mode)+'</b><span>'+esc(e)+'</span></div>';
+        }).filter(Boolean).join('');
+      }
+      const previousUpdateUI=updateUI;
+      updateUI=function(){
+        previousUpdateUI();
+        const n=S.sel||S.hover;
+        if(!n||n.stable||!massByKey.size)return;
+        const rows=energyRows(n);
+        if(!rows)return;
+        if(info.querySelector('#decay-energy-section'))return;
+        const div=document.createElement('div');
+        div.id='decay-energy-section';
+        div.innerHTML='<div class="eyebrow" style="margin-top:12px">Estimated decay energy</div>'+rows+'<div class="detail"><span>Note</span><span>Q-values are estimated from atomic masses in the current nuclide dataset; daughter masses must be present.</span></div>';
+        info.appendChild(div);
+      };
+      fetch(DATA_URL).then(r=>r.text()).then(t=>{
+        for(const r of parseCSV(t)){
+          const Z=Number(r.z??r.Z),N=Number(r.n??r.N),m=microMass(r.atomic_mass||r.mass);
+          if(isFinite(Z)&&isFinite(N)&&isFinite(m))massByKey.set(key(Z,N),m);
+        }
+      });
+    }
+  `;
+  doc.body.appendChild(script);
+}
+frame.addEventListener('load',()=>[200,700,1400,2400].forEach(t=>setTimeout(installEnergyPatch,t)));
+</script>
+</body>
+</html>
