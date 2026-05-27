@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="note"><b>Preview:</b> Auto Orbit centers on the visible part of the nuclide table.</div>
+<div id="note"><b>Preview:</b> Auto Orbit keeps the visible table where it already is.</div>
 <script>
 const frame=document.getElementById('frame');
 function installAutoOrbit(){
@@ -71,9 +71,12 @@ function installAutoOrbit(){
           count++;
         }
         if(count>0){
-          return {pivot:{x:(minX+maxX)/2,y:0,z:(minZ+maxZ)/2},screen:b,count};
+          const pivot={x:(minX+maxX)/2,y:0,z:(minZ+maxZ)/2};
+          const p=projectObj(pivot);
+          return {pivot,screen:{x:p.x,y:p.y},count};
         }
-        return {pivot:planePointAtScreen(b.x,b.y),screen:b,count:0};
+        const fallback={x:b.x,y:b.y};
+        return {pivot:planePointAtScreen(fallback.x,fallback.y),screen:fallback,count:0};
       }
 
       function planePointAtScreen(screenX,screenY){
@@ -88,6 +91,7 @@ function installAutoOrbit(){
         const target=visibleTablePivot();
         S.autoOrbit=true;
         S.autoPivot=target.pivot;
+        S.autoScreen=target.screen;
         btn.textContent='Stop Auto Orbit';
         btn.classList.add('active');
       }
@@ -97,12 +101,11 @@ function installAutoOrbit(){
         btn.classList.remove('active');
       }
       function autoOrbitStep(){
-        if(S.autoOrbit&&S.autoPivot){
-          const screen=openWorkspaceBounds();
+        if(S.autoOrbit&&S.autoPivot&&S.autoScreen){
           S.ry+=0.006;
           const after=projectObj(S.autoPivot);
-          S.panX+=screen.x-after.x;
-          S.panY+=screen.y-after.y;
+          S.panX+=S.autoScreen.x-after.x;
+          S.panY+=S.autoScreen.y-after.y;
         }
         requestAnimationFrame(autoOrbitStep);
       }
