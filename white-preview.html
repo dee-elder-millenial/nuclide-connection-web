@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes" />
+<title>H.A.N.K. White Background Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#f8fafc}
+#notice{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(255,255,255,.88);color:#0f172a;border:1px solid rgba(15,23,42,.18);border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(15,23,42,.18);backdrop-filter:blur(8px)}
+#notice a{color:#0369a1;font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="notice">White preview · <a href="./index.html">back to dark version</a></div>
+<script>
+const frame=document.getElementById('frame');
+function applyWhitePreview(){
+  const doc=frame.contentDocument;
+  if(!doc)return;
+  const style=doc.createElement('style');
+  style.id='white-preview-overrides';
+  style.textContent=`
+    html,body{background:#f8fafc!important;color:#0f172a!important;}
+    canvas#c{background:radial-gradient(circle at 18% 8%,rgba(191,219,254,.55),transparent 34%),radial-gradient(circle at 82% 78%,rgba(221,214,254,.45),transparent 36%),#f8fafc!important;}
+    #top,#bottom,#hud,#info{background:rgba(255,255,255,.88)!important;border-color:rgba(15,23,42,.18)!important;color:#0f172a!important;box-shadow:0 12px 36px rgba(15,23,42,.13)!important;}
+    button,select{background:#ffffff!important;color:#0f172a!important;border-color:#94a3b8!important;}
+    button.active{border-color:#0284c7!important;box-shadow:0 0 0 1px rgba(2,132,199,.35) inset!important;}
+    label,.status,.detail span:first-child,.map-help,.map-title span:last-child,#hud{color:#475569!important;}
+    h1,#info h2,.detail span:last-child,.mode b,.map-help b{color:#0f172a!important;}
+    .eyebrow,.group-title,details.group summary,.value{color:#0369a1!important;}
+    .group{background:rgba(241,245,249,.82)!important;border-color:rgba(15,23,42,.18)!important;}
+    #miniMap{background:#f1f5f9!important;border-color:rgba(15,23,42,.22)!important;}
+  `;
+  doc.head.appendChild(style);
+}
+frame.addEventListener('load',()=>{setTimeout(applyWhitePreview,250);setTimeout(applyWhitePreview,1000);});
+</script>
+</body>
+</html>
