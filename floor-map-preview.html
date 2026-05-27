@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="note"><b>Preview:</b> projected Z/N floor map under the nodes</div>
+<div id="note"><b>Preview:</b> Z/N floor map with selected isotope column</div>
 <script>
 const frame=document.getElementById('frame');
 function installFloor(){
@@ -25,14 +25,15 @@ function installFloor(){
     if(!window.__floorMapPatch){
       window.__floorMapPatch=true;
       const previousDrawAxes=drawAxes;
+
       function floorColor(n){
         const level=n.stable?0:instability(n);
         return 'hsl('+(275*level)+' 88% '+(n.stable?48:54)+'%)';
       }
-      function floorCell(n){
+
+      function floorCellAt(n,y){
         const hx=S.zScale*.42;
         const hz=S.nScale*.42;
-        const y=0;
         return [
           projectObj({x:n.x-hx,y:y,z:n.z-hz}),
           projectObj({x:n.x+hx,y:y,z:n.z-hz}),
@@ -40,7 +41,8 @@ function installFloor(){
           projectObj({x:n.x-hx,y:y,z:n.z+hz})
         ];
       }
-      function drawOneFloorCell(pts,fill,alpha){
+
+      function drawPoly(pts,fill,stroke,alpha){
         ctx.save();
         ctx.globalAlpha=alpha;
         ctx.beginPath();
@@ -50,20 +52,121 @@ function installFloor(){
         ctx.fillStyle=fill;
         ctx.fill();
         ctx.globalAlpha=Math.min(1,alpha+.16);
-        ctx.strokeStyle='rgba(255,255,255,.16)';
+        ctx.strokeStyle=stroke;
         ctx.lineWidth=1;
         ctx.stroke();
         ctx.restore();
       }
+
+      function pctNumber(v){
+        if(!v)return NaN;
+        const n=Number(String(v).replace('%','').trim());
+        if(!isFinite(n))return NaN;
+        return n>1?n/100:n;
+      }
+
+      function decayColor(mode,i){
+        const m=String(mode||'').toLowerCase();
+        if(/stable/.test(m))return '#ef4444';
+        if(/alpha|α|(^|\\W)a($|\\W)/.test(m))return '#f97316';
+        if(/b-|beta-|β-/.test(m))return '#0ea5e9';
+        if(/b\\+|beta\\+|β\\+|ec|electron/.test(m))return '#d946ef';
+        if(/sf|fission/.test(m))return '#22c55e';
+        return ['#06b6d4','#8b5cf6','#eab308','#14b8a6'][i%4];
+      }
+
+      function selectedModes(n){
+        if(n.stable)return [{mode:'Stable',prob:1,color:'#ef4444'}];
+        const raw=(n.modes&&n.modes.length?n.modes:[{mode:n.decay||'Unknown',prob:''}]);
+        const items=raw.map((m,i)=>({mode:m.mode||'Unknown',prob:pctNumber(m.prob),color:decayColor(m.mode,i)}));
+        let known=items.filter(x=>isFinite(x.prob)&&x.prob>0).reduce((s,x)=>s+x.prob,0);
+        if(known>0){
+          items.forEach(x=>{if(!isFinite(x.prob)||x.prob<=0)x.prob=Math.max(0,(1-known)/(items.length-1||1));});
+        }else{
+          items.forEach(x=>x.prob=1/items.length);
+        }
+        const total=items.reduce((s,x)=>s+x.prob,0)||1;
+        items.forEach(x=>x.prob=x.prob/total);
+        return items;
+      }
+
+      function shade(hex,amt){
+        const h=hex.replace('#','');
+        const n=parseInt(h,16);
+        let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+        r=Math.max(0,Math.min(255,Math.round(r+amt)));
+        g=Math.max(0,Math.min(255,Math.round(g+amt)));
+        b=Math.max(0,Math.min(255,Math.round(b+amt)));
+        return 'rgb('+r+','+g+','+b+')';
+      }
+
+      function faceDepth(face){return face.reduce((s,p)=>s+(p.depth||0),0)/face.length;}
+
+      function drawColumnLabel(n,base){
+        const label=n.label();
+        ctx.save();
+        ctx.font='700 13px system-ui';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        const w=ctx.measureText(label).width+16;
+        const h=21;
+        const x=base.x;
+        const y=base.y+18;
+        ctx.fillStyle='rgba(9,10,16,.86)';
+        ctx.strokeStyle='rgba(125,211,252,.62)';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        if(ctx.roundRect)ctx.roundRect(x-w/2,y-h/2,w,h,8);else ctx.rect(x-w/2,y-h/2,w,h);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle='#f8fafc';
+        ctx.fillText(label,x,y+1);
+        ctx.restore();
+      }
+
+      function drawSelectedColumn(n){
+        if(!n||!visible(n))return;
+        const baseCenter=projectObj({x:n.x,y:0,z:n.z});
+        let heightY=n.y;
+        if(Math.abs(heightY)<18)heightY=-18/S.zoom;
+        const modes=selectedModes(n);
+        const faces=[];
+        let t0=0;
+        for(let i=0;i<modes.length;i++){
+          const t1=i===modes.length-1?1:t0+modes[i].prob;
+          const lower=floorCellAt(n,heightY*t0);
+          const upper=floorCellAt(n,heightY*t1);
+          const baseColor=modes[i].color;
+          for(let f=0;f<4;f++){
+            const next=(f+1)%4;
+            const pts=[lower[f],lower[next],upper[next],upper[f]];
+            const light=f===0?22:f===1?0:f===2?-30:-12;
+            faces.push({pts:pts,depth:faceDepth(pts),fill:shade(baseColor,light),alpha:.66});
+          }
+          if(i===modes.length-1){
+            faces.push({pts:upper,depth:faceDepth(upper)+999,fill:shade(baseColor,38),alpha:.84});
+          }
+          t0=t1;
+        }
+        ctx.save();
+        ctx.lineJoin='round';
+        faces.sort((a,b)=>a.depth-b.depth);
+        for(const face of faces)drawPoly(face.pts,face.fill,'rgba(255,255,255,.24)',face.alpha);
+        ctx.restore();
+        drawColumnLabel(n,baseCenter);
+      }
+
       function drawFloorMap(){
         const cells=S.nodes.filter(n=>visible(n)).sort((a,b)=>a.N-b.N||a.Z-b.Z);
         ctx.save();
         ctx.lineJoin='round';
         for(const n of cells){
-          drawOneFloorCell(floorCell(n),floorColor(n),n.stable?.46:.36);
+          drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.16)',n.stable?.46:.36);
         }
         ctx.restore();
+        if(S.sel)drawSelectedColumn(S.sel);
       }
+
       drawAxes=function(){
         drawFloorMap();
         previousDrawAxes();
