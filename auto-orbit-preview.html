@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes">
+<title>H.A.N.K. Auto Orbit Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205}
+#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}
+#note b{color:#7dd3fc}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="note"><b>Preview:</b> Auto Orbit added. Click Auto Orbit to start; Stop Auto Orbit to stop.</div>
+<script>
+const frame=document.getElementById('frame');
+function installAutoOrbit(){
+  const doc=frame.contentDocument;
+  if(!doc||doc.getElementById('auto-orbit-patch'))return;
+  const script=doc.createElement('script');
+  script.id='auto-orbit-patch';
+  script.textContent=String.raw`
+    if(!window.__hankAutoOrbitPatch){
+      window.__hankAutoOrbitPatch=true;
+      const btn=document.createElement('button');
+      btn.id='autoOrbit';
+      btn.textContent='Auto Orbit';
+      const orbitBtn=document.getElementById('orbit');
+      if(orbitBtn&&orbitBtn.parentNode)orbitBtn.parentNode.insertBefore(btn,orbitBtn.nextSibling);
+      function planePointAtScreen(screenX,screenY){
+        const zoom=S.zoom||1;
+        const x1=(screenX-c.clientWidth/2-S.panX)/zoom;
+        const y2=(screenY-c.clientHeight/2-S.panY)/zoom;
+        const sx=Math.sin(S.rx), cy=Math.cos(S.ry), sy=Math.sin(S.ry);
+        let z1=Math.abs(sx)>1e-4 ? -y2/sx : 0;
+        return {x:x1*cy-z1*sy,y:0,z:x1*sy+z1*cy};
+      }
+      function startAutoOrbit(){
+        S.autoOrbit=true;
+        S.autoPivot=planePointAtScreen(c.clientWidth/2,c.clientHeight/2);
+        btn.textContent='Stop Auto Orbit';
+        btn.classList.add('active');
+      }
+      function stopAutoOrbit(){
+        S.autoOrbit=false;
+        btn.textContent='Auto Orbit';
+        btn.classList.remove('active');
+      }
+      function autoOrbitStep(){
+        if(S.autoOrbit&&S.autoPivot){
+          const before=projectObj(S.autoPivot);
+          S.ry+=0.006;
+          keepWorldPointAtScreen(S.autoPivot,before);
+        }
+        requestAnimationFrame(autoOrbitStep);
+      }
+      btn.onclick=()=>{S.autoOrbit?stopAutoOrbit():startAutoOrbit();};
+      c.addEventListener('pointerdown',()=>{if(S.autoOrbit)stopAutoOrbit();},true);
+      document.getElementById('resetV')?.addEventListener('click',()=>{if(S.autoOrbit)stopAutoOrbit();},true);
+      autoOrbitStep();
+    }
+  `;
+  doc.body.appendChild(script);
+}
+frame.addEventListener('load',()=>[100,500,1200,2200].forEach(t=>setTimeout(installAutoOrbit,t)));
+</script>
+</body>
+</html>
