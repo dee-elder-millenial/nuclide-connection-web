@@ -1,13 +1,31 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="note"><b>Preview:</b> floor is opaque by draw order, not just alpha.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}#build{position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="build">B8Q2</div><div id="note"><b>Preview B8Q2:</b> floor uses a solid slab under the colored cells.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const badge=d.createElement('div');badge.textContent='B8Q2';badge.style.cssText='position:fixed;right:10px;top:10px;z-index:1000000;background:#0f172a;color:#e0f2fe;border:1px solid #7dd3fc;border-radius:9px;padding:4px 7px;font:700 11px system-ui;letter-spacing:.08em;pointer-events:none';d.body.appendChild(badge);const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
 if(!window.__opaqueFloorPatch){
   window.__opaqueFloorPatch=true;
   const hm=document.getElementById('heightMode');
   if(hm&&hm.parentNode){for(const n of [...hm.parentNode.childNodes]){if(n.nodeType===3&&n.nodeValue.includes('Height'))n.nodeValue=n.nodeValue.replace('Height','Display');}}
+  function drawSolidFloorSlab(){
+    if(!S.showFloor)return;
+    let cells=S.nodes.filter(visible);
+    if(!cells.length)return;
+    let minX=Math.min(...cells.map(n=>n.x-S.zScale*.48));
+    let maxX=Math.max(...cells.map(n=>n.x+S.zScale*.48));
+    let minZ=Math.min(...cells.map(n=>n.z-S.nScale*.48));
+    let maxZ=Math.max(...cells.map(n=>n.z+S.nScale*.48));
+    const pts=[projectObj({x:minX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:minZ}),projectObj({x:maxX,y:0,z:maxZ}),projectObj({x:minX,y:0,z:maxZ})];
+    ctx.save();
+    ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=1;
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.closePath();
+    ctx.fillStyle='#050713';ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=1.25;ctx.stroke();
+    ctx.restore();
+  }
   function drawOpaqueFloorOnly(){
     if(!S.showFloor)return;
+    drawSolidFloorSlab();
     let cells=S.nodes.filter(visible).sort((a,b)=>a.N-b.N||a.Z-b.Z);
-    ctx.save();ctx.lineJoin='round';
-    for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.26)',1);
+    ctx.save();ctx.lineJoin='round';ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+    for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.30)',1);
     ctx.restore();
   }
   drawZNFloorMap=function(){drawOpaqueFloorOnly();drawSelectedColumn();};
