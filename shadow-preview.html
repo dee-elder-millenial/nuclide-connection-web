@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="notice"><b>white-shadow branch</b> · experimental Z/N floor map + spherical nodes</div>
+<div id="notice"><b>white-shadow branch</b> · selected isotope label + stacked stability bar</div>
 <script>
 const frame=document.getElementById('frame');
 function patchShadowPreview(){
@@ -83,6 +83,116 @@ function patchShadowPreview(){
         ctx.stroke();
         ctx.restore();
       }
+      function pctNumber(v){
+        if(!v)return NaN;
+        const s=String(v).replace('%','').trim();
+        const n=Number(s);
+        if(!isFinite(n))return NaN;
+        return n>1?n/100:n;
+      }
+      function decayColor(mode,i){
+        const m=String(mode||'').toLowerCase();
+        if(/stable/.test(m))return '#ef4444';
+        if(/alpha|α|(^|\\W)a($|\\W)/.test(m))return '#f97316';
+        if(/b-|beta-|β-/.test(m))return '#0ea5e9';
+        if(/b\\+|beta\\+|β\\+|ec|electron/.test(m))return '#d946ef';
+        if(/sf|fission/.test(m))return '#22c55e';
+        return ['#06b6d4','#8b5cf6','#eab308','#14b8a6'][i%4];
+      }
+      function selectedModes(n){
+        if(n.stable)return [{mode:'Stable',prob:1,color:'#ef4444'}];
+        const raw=(n.modes&&n.modes.length?n.modes:[{mode:n.decay||'Unknown',prob:''}]);
+        let items=raw.map((m,i)=>({mode:m.mode||'Unknown',prob:pctNumber(m.prob),color:decayColor(m.mode,i)}));
+        let known=items.filter(x=>isFinite(x.prob)&&x.prob>0).reduce((s,x)=>s+x.prob,0);
+        if(known>0){
+          items.forEach(x=>{if(!isFinite(x.prob)||x.prob<=0)x.prob=Math.max(0,(1-known)/(items.length-1||1));});
+        }else{
+          items.forEach(x=>x.prob=1/items.length);
+        }
+        const total=items.reduce((s,x)=>s+x.prob,0)||1;
+        items.forEach(x=>x.prob=x.prob/total);
+        return items;
+      }
+      function drawSelectedFloorLabel(n,base){
+        const label=n.label();
+        ctx.save();
+        ctx.font='700 14px system-ui';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        const w=ctx.measureText(label).width+18;
+        const h=22;
+        const lx=base.x;
+        const ly=base.y+18;
+        ctx.fillStyle='rgba(255,255,255,.86)';
+        ctx.strokeStyle='rgba(15,23,42,.42)';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        if(ctx.roundRect)ctx.roundRect(lx-w/2,ly-h/2,w,h,8);else ctx.rect(lx-w/2,ly-h/2,w,h);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle='#0f172a';
+        ctx.fillText(label,lx,ly+1);
+        ctx.restore();
+      }
+      function drawSelectedStabilityBar(n){
+        if(!n||!visible(n))return;
+        const base=projectObj({x:n.x,y:0,z:n.z});
+        let top=projectObj({x:n.x,y:n.y,z:n.z});
+        if(Math.hypot(top.x-base.x,top.y-base.y)<18){
+          top={x:base.x,y:base.y-24};
+        }
+        const dx=top.x-base.x,dy=top.y-base.y;
+        const len=Math.hypot(dx,dy)||1;
+        const ux=dx/len,uy=dy/len;
+        const px=-uy,py=ux;
+        const width=12;
+        const modes=selectedModes(n);
+        ctx.save();
+        ctx.lineCap='round';
+        ctx.strokeStyle='rgba(15,23,42,.26)';
+        ctx.lineWidth=width+5;
+        ctx.beginPath();
+        ctx.moveTo(base.x,base.y);
+        ctx.lineTo(top.x,top.y);
+        ctx.stroke();
+        let t0=0;
+        for(let i=0;i<modes.length;i++){
+          const t1=i===modes.length-1?1:t0+modes[i].prob;
+          ctx.strokeStyle=modes[i].color;
+          ctx.lineWidth=width;
+          ctx.beginPath();
+          ctx.moveTo(base.x+dx*t0,base.y+dy*t0);
+          ctx.lineTo(base.x+dx*t1,base.y+dy*t1);
+          ctx.stroke();
+          t0=t1;
+        }
+        ctx.fillStyle='rgba(15,23,42,.82)';
+        ctx.beginPath();
+        ctx.arc(base.x,base.y,4.2,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.95)';
+        ctx.strokeStyle='rgba(15,23,42,.55)';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.arc(top.x,top.y,5.5,0,Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        if(modes.length>1){
+          ctx.font='600 10px system-ui';
+          ctx.textAlign='left';
+          ctx.textBaseline='middle';
+          let y=base.y-8;
+          for(const m of modes.slice(0,4)){
+            ctx.fillStyle=m.color;
+            ctx.fillRect(base.x+px*(width+8)+8,y-4,8,8);
+            ctx.fillStyle='#0f172a';
+            ctx.fillText(String(m.mode||'mode').replace(/_/g,' '),base.x+px*(width+8)+20,y);
+            y-=13;
+          }
+        }
+        ctx.restore();
+        drawSelectedFloorLabel(n,base);
+      }
       function drawZNPlane(){
         const cells=S.nodes.filter(n=>visible(n)).sort((a,b)=>a.N-b.N||a.Z-b.Z);
         ctx.save();
@@ -92,6 +202,7 @@ function patchShadowPreview(){
           drawCell(ctx,pts,planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
         }
         ctx.restore();
+        if(S.sel)drawSelectedStabilityBar(S.sel);
       }
       drawAxes=function(){
         drawZNPlane();
