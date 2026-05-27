@@ -1,17 +1,40 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="note"><b>Preview:</b> floor map cells are opaque, and the selector label is clarified.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes"><title>H.A.N.K. Opaque Floor Preview</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#020205}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font:12px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}#note b{color:#7dd3fc}</style></head><body><iframe id="frame" src="./index.html"></iframe><div id="note"><b>Preview:</b> floor is opaque by draw order, not just alpha.</div><script>const frame=document.getElementById('frame');function install(){const d=frame.contentDocument;if(!d||d.getElementById('opaque-floor-patch'))return;const s=d.createElement('script');s.id='opaque-floor-patch';s.textContent=String.raw`
 if(!window.__opaqueFloorPatch){
   window.__opaqueFloorPatch=true;
   const hm=document.getElementById('heightMode');
   if(hm&&hm.parentNode){for(const n of [...hm.parentNode.childNodes]){if(n.nodeType===3&&n.nodeValue.includes('Height'))n.nodeValue=n.nodeValue.replace('Height','Display');}}
-  if(typeof drawZNFloorMap==='function'){
-    drawZNFloorMap=function(){
-      if(!S.showFloor)return;
-      let cells=S.nodes.filter(visible).sort((a,b)=>a.N-b.N||a.Z-b.Z);
-      ctx.save();ctx.lineJoin='round';
-      for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.22)',1);
-      ctx.restore();
-      drawSelectedColumn();
-    };
+  function drawOpaqueFloorOnly(){
+    if(!S.showFloor)return;
+    let cells=S.nodes.filter(visible).sort((a,b)=>a.N-b.N||a.Z-b.Z);
+    ctx.save();ctx.lineJoin='round';
+    for(let n of cells)drawPoly(floorCellAt(n,0),floorColor(n),'rgba(255,255,255,.26)',1);
+    ctx.restore();
   }
+  drawZNFloorMap=function(){drawOpaqueFloorOnly();drawSelectedColumn();};
+  draw=function(){
+    resize();
+    S.nodes.forEach(n=>{if(visible(n))project(n)});
+    S.reactions.forEach(r=>{if(reactionVisible(r)){let p=projectObj(r);r.sx=p.x;r.sy=p.y;r.depth=p.depth}});
+    S.hover=closest(S.lastX,S.lastY);S.hoverReaction=closestReaction(S.lastX,S.lastY);
+    ctx.clearRect(0,0,c.clientWidth,c.clientHeight);
+    drawAxes();
+    if(S.showLines){
+      for(let l of S.links.filter(linkVisible)){
+        ctx.strokeStyle=rgba(lineRGB(l.type),l.type==='isotope'?.28:.74);
+        ctx.lineWidth=l.type==='isotope'?1.1:(l.type==='proton'||l.type==='neutron'||l.type==='delayed'?2.4:3);
+        ctx.setLineDash(l.type==='delayed'?[7,5]:[]);
+        ctx.beginPath();ctx.moveTo(l.a.sx,l.a.sy);ctx.lineTo(l.b.sx,l.b.sy);ctx.stroke();ctx.setLineDash([]);
+        if(S.showArrows&&l.type!=='isotope')arrowBetween(l.a,l.b,lineRGB(l.type),.74);
+      }
+      if(S.linkTypes.fusion)drawFusion();
+    }
+    drawOpaqueFloorOnly();
+    drawSelectedColumn();
+    let drawNodes=S.nodes.filter(visible).sort((a,b)=>a.depth-b.depth);
+    if(S.showDots)for(let n of drawNodes){let r=Math.max(3,Math.min(13,n.rad()*S.zoom));ctx.fillStyle=nodeColor(n);ctx.beginPath();ctx.arc(n.sx,n.sy,r,0,7);ctx.fill();if(n===S.sel||n===S.hover){ctx.strokeStyle='white';ctx.lineWidth=2;ctx.beginPath();ctx.arc(n.sx,n.sy,r+5,0,7);ctx.stroke();}}
+    if(S.showDots&&S.linkTypes.fusion&&S.fusionMode==='nodes')drawReactionNodes();
+    if(S.labels)for(let n of drawNodes){let act=n===S.sel||n===S.hover;ctx.font=`${act?'700':'400'} ${act?15:10}px system-ui`;ctx.textAlign='center';ctx.fillStyle=act?'white':'rgba(215,215,215,.92)';ctx.fillText(n.label(),n.sx,n.sy-(act?21:15));}
+    drawMiniMap();updateUI();
+  };
 }
 `;d.body.appendChild(s)}frame.addEventListener('load',()=>setTimeout(install,300));</script></body></html>
