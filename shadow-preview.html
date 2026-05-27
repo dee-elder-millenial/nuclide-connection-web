@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="notice"><b>white-shadow branch</b> · experimental canvas depth shadows</div>
+<div id="notice"><b>white-shadow branch</b> · experimental Z/N floor map + depth shadows</div>
 <script>
 const frame=document.getElementById('frame');
 function patchShadowPreview(){
@@ -39,11 +39,79 @@ function patchShadowPreview(){
   }
   if(win.__hankShadowPreviewPatch)return;
   win.__hankShadowPreviewPatch=true;
+
   const proto=win.CanvasRenderingContext2D.prototype;
   const originalArc=proto.arc;
   const originalFill=proto.fill;
   const originalFillText=proto.fillText;
   const originalBeginPath=proto.beginPath;
+
+  const injected=doc.createElement('script');
+  injected.textContent=`
+    if(!window.__hankZNPlanePatch){
+      window.__hankZNPlanePatch=true;
+      const oldDrawAxes=drawAxes;
+      function planeColorForNuclide(n){
+        const level=n.stable?0:instability(n);
+        const hue=275*level;
+        const light=n.stable?58:62;
+        return 'hsl('+hue+' 92% '+light+'%)';
+      }
+      function projectCellCorners(n){
+        const hx=S.zScale*.42;
+        const hz=S.nScale*.42;
+        const y=0;
+        return [
+          projectObj({x:n.x-hx,y,z:n.z-hz}),
+          projectObj({x:n.x+hx,y,z:n.z-hz}),
+          projectObj({x:n.x+hx,y,z:n.z+hz}),
+          projectObj({x:n.x-hx,y,z:n.z+hz})
+        ];
+      }
+      function drawCell(ctx,pts,fill,stroke,alpha){
+        ctx.save();
+        ctx.globalAlpha=alpha;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x,pts[0].y);
+        for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle=fill;
+        ctx.fill();
+        ctx.globalAlpha=Math.min(1,alpha+.18);
+        ctx.strokeStyle=stroke;
+        ctx.lineWidth=1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function drawZNPlane(){
+        const cells=S.nodes.filter(n=>visible(n)).sort((a,b)=>a.N-b.N||a.Z-b.Z);
+        ctx.save();
+        ctx.lineJoin='round';
+        for(const n of cells){
+          const pts=projectCellCorners(n);
+          drawCell(ctx,pts,planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
+        }
+        for(const n of cells){
+          if(n.stable)continue;
+          const top=projectObj({x:n.x,y:n.y,z:n.z});
+          const base=projectObj({x:n.x,y:0,z:n.z});
+          ctx.strokeStyle='rgba(15,23,42,.18)';
+          ctx.lineWidth=1;
+          ctx.beginPath();
+          ctx.moveTo(base.x,base.y);
+          ctx.lineTo(top.x,top.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      drawAxes=function(){
+        drawZNPlane();
+        oldDrawAxes();
+      };
+    }
+  `;
+  doc.body.appendChild(injected);
+
   proto.beginPath=function(){this.__hankLastArc=null;return originalBeginPath.apply(this,arguments)};
   proto.arc=function(x,y,r,s,e,ccw){
     this.__hankLastArc={x,y,r};
