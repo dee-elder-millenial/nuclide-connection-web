@@ -13,13 +13,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="notice"><b>white-shadow branch</b> · selected isotope label + stacked stability bar</div>
+<div id="notice"><b>white-shadow branch</b> · fast shadows, Z/N floor, selected isotope bar</div>
 <script>
 const frame=document.getElementById('frame');
 function patchShadowPreview(){
   const doc=frame.contentDocument;
   const win=frame.contentWindow;
   if(!doc||!win)return;
+
   if(!doc.getElementById('white-shadow-style')){
     const style=doc.createElement('style');
     style.id='white-shadow-style';
@@ -37,30 +38,23 @@ function patchShadowPreview(){
     `;
     doc.head.appendChild(style);
   }
+
   if(win.__hankShadowPreviewPatch)return;
   win.__hankShadowPreviewPatch=true;
 
-  const proto=win.CanvasRenderingContext2D.prototype;
-  const originalArc=proto.arc;
-  const originalFill=proto.fill;
-  const originalFillText=proto.fillText;
-  const originalBeginPath=proto.beginPath;
-
   const injected=doc.createElement('script');
-  injected.textContent=`
+  injected.textContent=String.raw`
     if(!window.__hankZNPlanePatch){
       window.__hankZNPlanePatch=true;
       const oldDrawAxes=drawAxes;
+
       function planeColorForNuclide(n){
         const level=n.stable?0:instability(n);
-        const hue=275*level;
-        const light=n.stable?58:62;
-        return 'hsl('+hue+' 92% '+light+'%)';
+        return 'hsl('+(275*level)+' 92% '+(n.stable?58:62)+'%)';
       }
+
       function projectCellCorners(n){
-        const hx=S.zScale*.42;
-        const hz=S.nScale*.42;
-        const y=0;
+        const hx=S.zScale*.42, hz=S.nScale*.42, y=0;
         return [
           projectObj({x:n.x-hx,y,z:n.z-hz}),
           projectObj({x:n.x+hx,y,z:n.z-hz}),
@@ -68,7 +62,8 @@ function patchShadowPreview(){
           projectObj({x:n.x-hx,y,z:n.z+hz})
         ];
       }
-      function drawCell(ctx,pts,fill,stroke,alpha){
+
+      function drawCell(pts,fill,stroke,alpha){
         ctx.save();
         ctx.globalAlpha=alpha;
         ctx.beginPath();
@@ -83,22 +78,24 @@ function patchShadowPreview(){
         ctx.stroke();
         ctx.restore();
       }
+
       function pctNumber(v){
         if(!v)return NaN;
-        const s=String(v).replace('%','').trim();
-        const n=Number(s);
+        const n=Number(String(v).replace('%','').trim());
         if(!isFinite(n))return NaN;
         return n>1?n/100:n;
       }
+
       function decayColor(mode,i){
         const m=String(mode||'').toLowerCase();
         if(/stable/.test(m))return '#ef4444';
-        if(/alpha|α|(^|\\W)a($|\\W)/.test(m))return '#f97316';
+        if(/alpha|α|(^|\W)a($|\W)/.test(m))return '#f97316';
         if(/b-|beta-|β-/.test(m))return '#0ea5e9';
-        if(/b\\+|beta\\+|β\\+|ec|electron/.test(m))return '#d946ef';
+        if(/b\+|beta\+|β\+|ec|electron/.test(m))return '#d946ef';
         if(/sf|fission/.test(m))return '#22c55e';
         return ['#06b6d4','#8b5cf6','#eab308','#14b8a6'][i%4];
       }
+
       function selectedModes(n){
         if(n.stable)return [{mode:'Stable',prob:1,color:'#ef4444'}];
         const raw=(n.modes&&n.modes.length?n.modes:[{mode:n.decay||'Unknown',prob:''}]);
@@ -113,16 +110,14 @@ function patchShadowPreview(){
         items.forEach(x=>x.prob=x.prob/total);
         return items;
       }
+
       function drawSelectedFloorLabel(n,base){
         const label=n.label();
         ctx.save();
         ctx.font='700 14px system-ui';
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        const w=ctx.measureText(label).width+18;
-        const h=22;
-        const lx=base.x;
-        const ly=base.y+18;
+        const w=ctx.measureText(label).width+18, h=22, lx=base.x, ly=base.y+18;
         ctx.fillStyle='rgba(255,255,255,.86)';
         ctx.strokeStyle='rgba(15,23,42,.42)';
         ctx.lineWidth=1;
@@ -134,19 +129,14 @@ function patchShadowPreview(){
         ctx.fillText(label,lx,ly+1);
         ctx.restore();
       }
+
       function drawSelectedStabilityBar(n){
         if(!n||!visible(n))return;
         const base=projectObj({x:n.x,y:0,z:n.z});
         let top=projectObj({x:n.x,y:n.y,z:n.z});
-        if(Math.hypot(top.x-base.x,top.y-base.y)<18){
-          top={x:base.x,y:base.y-24};
-        }
-        const dx=top.x-base.x,dy=top.y-base.y;
-        const len=Math.hypot(dx,dy)||1;
-        const ux=dx/len,uy=dy/len;
-        const px=-uy,py=ux;
-        const width=12;
-        const modes=selectedModes(n);
+        if(Math.hypot(top.x-base.x,top.y-base.y)<18)top={x:base.x,y:base.y-24};
+        const dx=top.x-base.x, dy=top.y-base.y, len=Math.hypot(dx,dy)||1;
+        const px=-(dy/len), py=dx/len, width=12, modes=selectedModes(n);
         ctx.save();
         ctx.lineCap='round';
         ctx.strokeStyle='rgba(15,23,42,.26)';
@@ -167,16 +157,11 @@ function patchShadowPreview(){
           t0=t1;
         }
         ctx.fillStyle='rgba(15,23,42,.82)';
-        ctx.beginPath();
-        ctx.arc(base.x,base.y,4.2,0,Math.PI*2);
-        ctx.fill();
+        ctx.beginPath();ctx.arc(base.x,base.y,4.2,0,Math.PI*2);ctx.fill();
         ctx.fillStyle='rgba(255,255,255,.95)';
         ctx.strokeStyle='rgba(15,23,42,.55)';
         ctx.lineWidth=1;
-        ctx.beginPath();
-        ctx.arc(top.x,top.y,5.5,0,Math.PI*2);
-        ctx.fill();
-        ctx.stroke();
+        ctx.beginPath();ctx.arc(top.x,top.y,5.5,0,Math.PI*2);ctx.fill();ctx.stroke();
         if(modes.length>1){
           ctx.font='600 10px system-ui';
           ctx.textAlign='left';
@@ -193,17 +178,18 @@ function patchShadowPreview(){
         ctx.restore();
         drawSelectedFloorLabel(n,base);
       }
+
       function drawZNPlane(){
         const cells=S.nodes.filter(n=>visible(n)).sort((a,b)=>a.N-b.N||a.Z-b.Z);
         ctx.save();
         ctx.lineJoin='round';
         for(const n of cells){
-          const pts=projectCellCorners(n);
-          drawCell(ctx,pts,planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
+          drawCell(projectCellCorners(n),planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
         }
         ctx.restore();
         if(S.sel)drawSelectedStabilityBar(S.sel);
       }
+
       drawAxes=function(){
         drawZNPlane();
         oldDrawAxes();
@@ -212,46 +198,52 @@ function patchShadowPreview(){
   `;
   doc.body.appendChild(injected);
 
+  const proto=win.CanvasRenderingContext2D.prototype;
+  const originalArc=proto.arc;
+  const originalFill=proto.fill;
+  const originalFillText=proto.fillText;
+  const originalBeginPath=proto.beginPath;
+
   proto.beginPath=function(){this.__hankLastArc=null;return originalBeginPath.apply(this,arguments)};
   proto.arc=function(x,y,r,s,e,ccw){
     this.__hankLastArc={x,y,r};
     return originalArc.apply(this,arguments);
   };
+
   proto.fill=function(){
     const arc=this.__hankLastArc;
     const canvasId=this.canvas&&this.canvas.id;
     const fill=String(this.fillStyle||'');
-    const looksLikeNuclideCircle=canvasId==='c'&&arc&&arc.r>=2.5&&arc.r<=18&&(fill.startsWith('hsl(')||fill.startsWith('#')||fill.startsWith('rgb'));
+    const looksLikeNuclideCircle=canvasId==='c'&&arc&&arc.r>=2.5&&arc.r<=18&&fill.startsWith('hsl(');
+    const result=originalFill.apply(this,arguments);
     if(looksLikeNuclideCircle){
       const cw=this.canvas.clientWidth||this.canvas.width;
       const centerBias=(arc.x-cw/2)/(cw/2||1);
       const pseudoDepth=Math.max(0,Math.min(1,(centerBias+1)/2));
-      const offsetX=10+centerBias*16;
-      const offsetY=12+pseudoDepth*10;
-      const blur=3+pseudoDepth*11;
-      const alpha=.10+pseudoDepth*.20;
+      const offsetX=8+centerBias*10;
+      const offsetY=8+pseudoDepth*8;
+      const alpha=.08+pseudoDepth*.14;
+
       this.save();
-      this.filter=`blur(${blur}px)`;
+      this.globalCompositeOperation='destination-over';
       this.globalAlpha=alpha;
-      this.fillStyle='rgba(15,23,42,.78)';
-      this.beginPath();
-      this.ellipse(arc.x+offsetX,arc.y+offsetY,arc.r*1.7,arc.r*.78,0,0,Math.PI*2);
+      this.fillStyle='rgba(15,23,42,.55)';
+      originalBeginPath.call(this);
+      this.ellipse(arc.x+offsetX,arc.y+offsetY,arc.r*1.45,arc.r*.55,0,0,Math.PI*2);
       originalFill.call(this);
       this.restore();
+
       this.save();
-      const grad=this.createRadialGradient(arc.x-arc.r*.35,arc.y-arc.r*.45,Math.max(1,arc.r*.15),arc.x,arc.y,arc.r*1.08);
-      grad.addColorStop(0,'rgba(255,255,255,.82)');
-      grad.addColorStop(.48,'rgba(255,255,255,.08)');
-      grad.addColorStop(1,'rgba(0,0,0,.22)');
-      this.globalCompositeOperation='source-atop';
-      this.fillStyle=grad;
-      this.beginPath();
-      this.arc(arc.x,arc.y,arc.r,0,Math.PI*2);
+      this.globalAlpha=.55;
+      this.fillStyle='rgba(255,255,255,.72)';
+      originalBeginPath.call(this);
+      this.arc(arc.x-arc.r*.35,arc.y-arc.r*.38,Math.max(1.5,arc.r*.26),0,Math.PI*2);
       originalFill.call(this);
       this.restore();
     }
-    return originalFill.apply(this,arguments);
+    return result;
   };
+
   proto.fillText=function(text,x,y,maxWidth){
     const canvasId=this.canvas&&this.canvas.id;
     const oldFill=this.fillStyle;
