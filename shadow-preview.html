@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:sy
 </head>
 <body>
 <iframe id="frame" src="./index.html"></iframe>
-<div id="notice"><b>white-shadow branch</b> · fast shadows, Z/N floor, selected isotope bar</div>
+<div id="notice"><b>white-shadow branch</b> · selected square extrudes into a stacked isotope column</div>
 <script>
 const frame=document.getElementById('frame');
 function patchShadowPreview(){
@@ -53,8 +53,8 @@ function patchShadowPreview(){
         return 'hsl('+(275*level)+' 92% '+(n.stable?58:62)+'%)';
       }
 
-      function projectCellCorners(n){
-        const hx=S.zScale*.42, hz=S.nScale*.42, y=0;
+      function projectCellCornersAt(n,y){
+        const hx=S.zScale*.42, hz=S.nScale*.42;
         return [
           projectObj({x:n.x-hx,y,z:n.z-hz}),
           projectObj({x:n.x+hx,y,z:n.z-hz}),
@@ -63,7 +63,7 @@ function patchShadowPreview(){
         ];
       }
 
-      function drawCell(pts,fill,stroke,alpha){
+      function drawPoly(pts,fill,stroke,alpha){
         ctx.save();
         ctx.globalAlpha=alpha;
         ctx.beginPath();
@@ -111,14 +111,24 @@ function patchShadowPreview(){
         return items;
       }
 
-      function drawSelectedFloorLabel(n,base){
+      function shade(hex,amt){
+        const h=hex.replace('#','');
+        const n=parseInt(h,16);
+        let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+        r=Math.max(0,Math.min(255,Math.round(r+amt)));
+        g=Math.max(0,Math.min(255,Math.round(g+amt)));
+        b=Math.max(0,Math.min(255,Math.round(b+amt)));
+        return 'rgb('+r+','+g+','+b+')';
+      }
+
+      function drawIsotopeFloorLabel(n,base){
         const label=n.label();
         ctx.save();
         ctx.font='700 14px system-ui';
         ctx.textAlign='center';
         ctx.textBaseline='middle';
         const w=ctx.measureText(label).width+18, h=22, lx=base.x, ly=base.y+18;
-        ctx.fillStyle='rgba(255,255,255,.86)';
+        ctx.fillStyle='rgba(255,255,255,.88)';
         ctx.strokeStyle='rgba(15,23,42,.42)';
         ctx.lineWidth=1;
         ctx.beginPath();
@@ -130,53 +140,50 @@ function patchShadowPreview(){
         ctx.restore();
       }
 
-      function drawSelectedStabilityBar(n){
+      function faceDepth(face){return face.reduce((s,p)=>s+(p.depth||0),0)/face.length;}
+
+      function drawSelectedColumn(n){
         if(!n||!visible(n))return;
-        const base=projectObj({x:n.x,y:0,z:n.z});
-        let top=projectObj({x:n.x,y:n.y,z:n.z});
-        if(Math.hypot(top.x-base.x,top.y-base.y)<18)top={x:base.x,y:base.y-24};
-        const dx=top.x-base.x, dy=top.y-base.y, len=Math.hypot(dx,dy)||1;
-        const px=-(dy/len), py=dx/len, width=12, modes=selectedModes(n);
-        ctx.save();
-        ctx.lineCap='round';
-        ctx.strokeStyle='rgba(15,23,42,.26)';
-        ctx.lineWidth=width+5;
-        ctx.beginPath();
-        ctx.moveTo(base.x,base.y);
-        ctx.lineTo(top.x,top.y);
-        ctx.stroke();
+        const baseCenter=projectObj({x:n.x,y:0,z:n.z});
+        let heightY=n.y;
+        if(Math.abs(heightY)<18)heightY=-18/S.zoom;
+        const modes=selectedModes(n);
         let t0=0;
+        const faces=[];
+
         for(let i=0;i<modes.length;i++){
           const t1=i===modes.length-1?1:t0+modes[i].prob;
-          ctx.strokeStyle=modes[i].color;
-          ctx.lineWidth=width;
-          ctx.beginPath();
-          ctx.moveTo(base.x+dx*t0,base.y+dy*t0);
-          ctx.lineTo(base.x+dx*t1,base.y+dy*t1);
-          ctx.stroke();
+          const lower=projectCellCornersAt(n,heightY*t0);
+          const upper=projectCellCornersAt(n,heightY*t1);
+          const baseColor=modes[i].color;
+          for(let f=0;f<4;f++){
+            const next=(f+1)%4;
+            const pts=[lower[f],lower[next],upper[next],upper[f]];
+            const light=f===0?20:f===1?0:f===2?-28:-12;
+            faces.push({pts,depth:faceDepth(pts),fill:shade(baseColor,light),alpha:.62});
+          }
+          if(i===modes.length-1){
+            faces.push({pts:upper,depth:faceDepth(upper)+999,fill:shade(baseColor,35),alpha:.82});
+          }
           t0=t1;
         }
-        ctx.fillStyle='rgba(15,23,42,.82)';
-        ctx.beginPath();ctx.arc(base.x,base.y,4.2,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle='rgba(255,255,255,.95)';
-        ctx.strokeStyle='rgba(15,23,42,.55)';
-        ctx.lineWidth=1;
-        ctx.beginPath();ctx.arc(top.x,top.y,5.5,0,Math.PI*2);ctx.fill();ctx.stroke();
-        if(modes.length>1){
-          ctx.font='600 10px system-ui';
-          ctx.textAlign='left';
-          ctx.textBaseline='middle';
-          let y=base.y-8;
-          for(const m of modes.slice(0,4)){
-            ctx.fillStyle=m.color;
-            ctx.fillRect(base.x+px*(width+8)+8,y-4,8,8);
-            ctx.fillStyle='#0f172a';
-            ctx.fillText(String(m.mode||'mode').replace(/_/g,' '),base.x+px*(width+8)+20,y);
-            y-=13;
-          }
-        }
+
+        ctx.save();
+        ctx.lineJoin='round';
+        faces.sort((a,b)=>a.depth-b.depth);
+        for(const face of faces)drawPoly(face.pts,face.fill,'rgba(15,23,42,.35)',face.alpha);
         ctx.restore();
-        drawSelectedFloorLabel(n,base);
+
+        const topCenter=projectObj({x:n.x,y:heightY,z:n.z});
+        ctx.save();
+        ctx.strokeStyle='rgba(15,23,42,.55)';
+        ctx.lineWidth=1.5;
+        ctx.beginPath();
+        ctx.arc(topCenter.x,topCenter.y,6,0,Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+
+        drawIsotopeFloorLabel(n,baseCenter);
       }
 
       function drawZNPlane(){
@@ -184,10 +191,10 @@ function patchShadowPreview(){
         ctx.save();
         ctx.lineJoin='round';
         for(const n of cells){
-          drawCell(projectCellCorners(n),planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
+          drawPoly(projectCellCornersAt(n,0),planeColorForNuclide(n),'rgba(15,23,42,.22)',n.stable?.52:.42);
         }
         ctx.restore();
-        if(S.sel)drawSelectedStabilityBar(S.sel);
+        if(S.sel)drawSelectedColumn(S.sel);
       }
 
       drawAxes=function(){
