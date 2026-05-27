@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes">
+<title>H.A.N.K. Height Mode Preview</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205}
+#note{position:fixed;left:12px;bottom:12px;z-index:999999;background:rgba(9,10,16,.9);color:#f4f7ff;border:1px solid #20263a;border-radius:14px;padding:8px 10px;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px)}
+#note b{color:#7dd3fc}
+</style>
+</head>
+<body>
+<iframe id="frame" src="./index.html"></iframe>
+<div id="note"><b>Preview:</b> Height can represent stability or weighted decay energy.</div>
+<script>
+const frame=document.getElementById('frame');
+function installHeightMode(){
+  const doc=frame.contentDocument;
+  if(!doc||doc.getElementById('height-mode-patch'))return;
+  const script=doc.createElement('script');
+  script.id='height-mode-patch';
+  script.textContent=String.raw`
+    if(!window.__hankHeightModePatch){
+      window.__hankHeightModePatch=true;
+      S.heightMode='stability';
+      S.maxDecayEnergy=1;
+
+      const label=document.createElement('label');
+      label.innerHTML='Height <select id="heightMode"><option value="stability" selected>Stability</option><option value="decayEnergy">Decay energy</option></select>';
+      const fusionLabel=document.querySelector('label select#fusionMode')?.parentNode;
+      if(fusionLabel&&fusionLabel.parentNode)fusionLabel.parentNode.insertBefore(label,fusionLabel.nextSibling);
+      const heightMode=document.getElementById('heightMode');
+
+      function qValuesForMode(n,mode){
+        const d=cleanMode(mode);
+        const vals=[];
+        function add(Z,N,extra=0){const q=qFrom(n,Z,N,extra);if(q!==null&&isFinite(q)&&q>0)vals.push(q);}
+        if(!d||d==='stable')return vals;
+        if(d.includes('b+p'))add(n.Z-2,n.N+1,H_U+2*E_U);
+        else if(d.includes('b+a'))add(n.Z-3,n.N-1,HE4_U+2*E_U);
+        else if(d.includes('b-2n'))add(n.Z+1,n.N-3,2*N_U);
+        else if(d.includes('b-n'))add(n.Z+1,n.N-2,N_U);
+        else if(d.includes('b-a'))add(n.Z-1,n.N-3,HE4_U);
+        else if(d.includes('b-p'))add(n.Z,n.N-1,H_U);
+        else if(d==='2p')add(n.Z-2,n.N,2*H_U);
+        else if(d==='p')add(n.Z-1,n.N,H_U);
+        else if(d==='2n')add(n.Z,n.N-2,2*N_U);
+        else if(d==='n')add(n.Z,n.N-1,N_U);
+        else if(d==='a'||d==='alpha')add(n.Z-2,n.N-2,HE4_U);
+        else{
+          if(d.includes('ec'))add(n.Z-1,n.N+1,0);
+          if(d.includes('b+')||d.includes('beta+'))add(n.Z-1,n.N+1,2*E_U);
+          if(d.includes('b-')||d.includes('beta-'))add(n.Z+1,n.N-1,0);
+        }
+        return vals;
+      }
+
+      function modeEnergy(n,mode){
+        const vals=qValuesForMode(n,mode);
+        if(!vals.length)return NaN;
+        return vals.reduce((a,b)=>a+b,0)/vals.length;
+      }
+
+      function branchWeights(n){
+        const modes=(n.modes&&n.modes.length?n.modes:[]);
+        const items=modes.map(m=>({mode:m.mode,prob:pctNumber(m.prob)}));
+        let known=items.filter(x=>isFinite(x.prob)&&x.prob>0).reduce((s,x)=>s+x.prob,0);
+        if(known>0){items.forEach(x=>{if(!isFinite(x.prob)||x.prob<=0)x.prob=Math.max(0,(1-known)/(items.length-1||1));});}
+        else{items.forEach(x=>x.prob=items.length?1/items.length:0);}
+        const total=items.reduce((s,x)=>s+x.prob,0)||1;
+        items.forEach(x=>x.prob=x.prob/total);
+        return items;
+      }
+
+      function weightedDecayEnergy(n){
+        if(!n||n.stable)return 0;
+        let sum=0,weight=0;
+        for(const item of branchWeights(n)){
+          const e=modeEnergy(n,item.mode);
+          if(isFinite(e)){sum+=e*item.prob;weight+=item.prob;}
+        }
+        return weight>0?sum/weight:0;
+      }
+
+      function recalcMaxDecayEnergy(){
+        let max=0;
+        for(const n of S.nodes)max=Math.max(max,weightedDecayEnergy(n));
+        S.maxDecayEnergy=max||1;
+      }
+
+      function heightValue(n){
+        if(S.heightMode==='decayEnergy')return Math.max(0,Math.min(1,weightedDecayEnergy(n)/(S.maxDecayEnergy||1)));
+        return instability(n);
+      }
+
+      const oldLayoutAll=layoutAll;
+      layoutAll=function(){
+        if(!S.nodes.length)return oldLayoutAll();
+        if(S.heightMode==='decayEnergy')recalcMaxDecayEnergy();
+        let cz=(S.aMinZ+S.aMaxZ)/2,cn=(S.aMinN+S.aMaxN)/2;
+        for(let n of S.nodes){
+          n.x=(n.Z-cz)*S.zScale;
+          n.z=(n.N-cn)*S.nScale;
+          n.y=-heightValue(n)*S.yScale;
+        }
+        for(let r of S.reactions){
+          let all=[...r.reactants,...r.products];
+          r.x=avg(all,'x');
+          r.z=avg(all,'z');
+          r.y=avg(all,'y')-42-(r.category==='alpha capture'?24:0);
+        }
+      };
+
+      const oldDrawAxes=drawAxes;
+      drawAxes=function(){
+        let p0=projectObj({x:-500,y:0,z:-500}),px=projectObj({x:500,y:0,z:-500}),pz=projectObj({x:-500,y:0,z:500}),py=projectObj({x:-500,y:-S.yScale,z:-500});
+        ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(px.x,px.y);ctx.moveTo(p0.x,p0.y);ctx.lineTo(pz.x,pz.y);ctx.moveTo(p0.x,p0.y);ctx.lineTo(py.x,py.y);ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='12px system-ui';ctx.fillText('Z →',px.x+8,px.y);ctx.fillText('N into screen',pz.x+8,pz.y);ctx.fillText(S.heightMode==='decayEnergy'?'higher decay energy ↑':'less stable ↑',py.x+8,py.y);
+      };
+
+      const oldUpdateUI=updateUI;
+      updateUI=function(){
+        oldUpdateUI();
+        const n=S.sel||S.hover;
+        if(!n)return;
+        if(info.querySelector('#height-mode-section'))return;
+        const div=document.createElement('div');
+        div.id='height-mode-section';
+        const e=weightedDecayEnergy(n);
+        const shown=S.heightMode==='decayEnergy'?'Height is weighted average decay energy.':'Height is instability from half-life.';
+        div.innerHTML='<div class="detail"><span>Height mode</span><span>'+esc(S.heightMode==='decayEnergy'?'Decay energy':'Stability / instability')+'</span></div><div class="detail"><span>Weighted decay energy</span><span>'+esc((isFinite(e)&&e>0)?fmtQ(e):'—')+'</span></div><div class="detail"><span>Height note</span><span>'+esc(shown)+'</span></div>';
+        info.appendChild(div);
+      };
+
+      heightMode.onchange=()=>{
+        S.heightMode=heightMode.value;
+        recalcMaxDecayEnergy();
+        layoutAll();
+        setPanelVars();
+      };
+      recalcMaxDecayEnergy();
+      layoutAll();
+    }
+  `;
+  doc.body.appendChild(script);
+}
+frame.addEventListener('load',()=>[100,500,1200,2200].forEach(t=>setTimeout(installHeightMode,t)));
+</script>
+</body>
+</html>
