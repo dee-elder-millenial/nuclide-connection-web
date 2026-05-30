@@ -22,3 +22,11 @@ Interactive web visualization of known isotopes/nuclides.
 - 0–4: link filters.
 
 The page loads the public Great Tables nuclides dataset from GitHub when opened.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
+
+The nuclide dataset is loaded from an external public GitHub source and is not
+included in this repository. This is an unofficial visualization project and is
+not endorsed by the dataset maintainers or any nuclear data authority.
