@@ -14,7 +14,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#020205;color:#f4f7ff;
 <div id="loading">Loading H.A.N.K. abundance mode…</div>
 <iframe id="app" src="./index.html" title="H.A.N.K. abundance mode"></iframe>
 <script>
-const BUILD_CODE='N9A4';
+const BUILD_CODE='Z7R2';
 const frame=document.getElementById('app');
 const loading=document.getElementById('loading');
 frame.addEventListener('load',()=>{
@@ -24,9 +24,11 @@ frame.addEventListener('load',()=>{
   const patch=doc.createElement('script');
   patch.textContent = String.raw`
 (function(){
-  const BUILD_CODE='N9A4';
+  const BUILD_CODE='Z7R2';
+  const DATA_URL='https://raw.githubusercontent.com/posit-dev/great-tables/main/great_tables/data/16-nuclides.csv';
+
   function abundanceValue(n){
-    const raw=n&&(n.abundanceRaw!=null?n.abundanceRaw:(n.raw&&n.raw.abundance));
+    const raw=n&&n.abundanceRaw;
     const v=Number(raw);
     return isFinite(v)&&v>0?Math.max(0,Math.min(1,v)):0;
   }
@@ -34,17 +36,59 @@ frame.addEventListener('load',()=>{
     const v=abundanceValue(n);
     return v>0?(v*100).toPrecision(5)+'%':'—';
   }
-  function install(){
+  function parseCSV2(t){
+    let rows=[],row=[],cell='',q=false;
+    for(let i=0;i<t.length;i++){
+      let ch=t[i],n=t[i+1];
+      if(q){
+        if(ch==='"'&&n==='"'){cell+='"';i++}
+        else if(ch==='"')q=false;
+        else cell+=ch;
+      }else{
+        if(ch==='"')q=true;
+        else if(ch===','){row.push(cell);cell=''}
+        else if(ch==='\n'||ch==='\r'){
+          if(ch==='\r'&&n==='\n')i++;
+          row.push(cell);
+          if(row.some(v=>String(v).trim()))rows.push(row);
+          row=[];cell='';
+        }else cell+=ch;
+      }
+    }
+    row.push(cell);
+    if(row.some(v=>String(v).trim()))rows.push(row);
+    const h=rows.shift().map(v=>v.trim());
+    return rows.map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]||'').trim()])));
+  }
+  async function fetchAbundanceMap(){
+    const res=await fetch(DATA_URL,{cache:'no-store'});
+    const text=await res.text();
+    const rows=parseCSV2(text);
+    const map=new Map();
+    for(const r of rows){
+      const z=Number(r.z), n=Number(r.n), a=Number(r.abundance);
+      if(isFinite(z)&&isFinite(n)&&isFinite(a)&&a>0)map.set(z+','+n,a);
+    }
+    return map;
+  }
+
+  async function install(){
     if(typeof S==='undefined'||!S.nodes||!S.nodes.length||typeof layoutAll!=='function'){
       setTimeout(install,80);
       return;
     }
+
+    let abundanceMap=new Map();
+    try{ abundanceMap=await fetchAbundanceMap(); }
+    catch(err){ console.warn('Could not fetch abundance CSV',err); }
+
     for(const n of S.nodes){
-      if(!n.raw)n.raw={};
-      n.abundanceRaw=n.raw.abundance!=null?n.raw.abundance:(n.abundanceRaw||'');
-      n.abundance=abundanceValue(n);
+      const val=abundanceMap.get(n.Z+','+n.N);
+      n.abundanceRaw=isFinite(val)?String(val):'';
+      n.abundance=isFinite(val)?val:0;
       if(n.abundance>0)n.isNatural=true;
     }
+
     const selector=document.getElementById('heightMode');
     if(selector&&!selector.querySelector('option[value="abundance"]')){
       const opt=document.createElement('option');
@@ -52,6 +96,7 @@ frame.addEventListener('load',()=>{
       opt.textContent='Natural abundance';
       selector.appendChild(opt);
     }
+
     const badge=document.createElement('div');
     badge.textContent='BUILD '+BUILD_CODE;
     badge.style.cssText='position:fixed;top:8px;right:10px;z-index:99;background:rgba(15,23,42,.9);border:1px solid rgba(125,211,252,.6);border-radius:10px;padding:5px 8px;color:#7dd3fc;font:800 11px system-ui;letter-spacing:.06em;pointer-events:none';
