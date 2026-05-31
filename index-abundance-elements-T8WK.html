@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=8, user-scalable=yes">
+<title>H.A.N.K. - Element-Colored Abundance</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#020205;color:#f4f7ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020205}
+#loading{position:fixed;inset:0;display:grid;place-items:center;color:#7dd3fc;font-weight:900;letter-spacing:.08em;text-transform:uppercase;background:#020205;z-index:5}
+</style>
+</head>
+<body>
+<div id="loading">Loading element-colored abundance mode…</div>
+<iframe id="app" src="./index-abundance.html" title="H.A.N.K. element-colored abundance"></iframe>
+<script>
+const BUILD_CODE='T8WK';
+const frame=document.getElementById('app');
+const loading=document.getElementById('loading');
+frame.addEventListener('load',()=>{
+  loading.style.display='none';
+  const inner=frame.contentDocument&&frame.contentDocument.getElementById('app');
+  if(!inner)return;
+  inner.addEventListener('load',()=>installColorPatch(inner),{once:false});
+  setTimeout(()=>installColorPatch(inner),1000);
+});
+function installColorPatch(inner){
+  const doc=inner.contentDocument;
+  if(!doc||doc.getElementById('elementColorPatch'))return;
+  const s=doc.createElement('script');
+  s.id='elementColorPatch';
+  s.textContent=`
+(function(){
+  const BUILD_CODE='T8WK';
+  function hue(n){return ((Number(n&&n.Z)||0)*137.508)%360}
+  function abundance(n){const v=Number(n&&n.abundanceRaw);return isFinite(v)&&v>0?Math.max(0,Math.min(1,v)):0}
+  function elColor(n,floor){const v=abundance(n),h=hue(n),sat=v>0?82:30,light=floor?(v>0?30+Math.min(30,v*42):18):(v>0?42+Math.min(28,v*38):28);return 'hsl('+h+' '+sat+'% '+light+'%)'}
+  function tryPatch(){
+    if(typeof S==='undefined'||!S.nodes||!S.nodes.length||typeof nodeColor==='undefined'||typeof floorColor==='undefined'){setTimeout(tryPatch,100);return}
+    const oldNodeColor=nodeColor,oldFloorColor=floorColor,oldUpdateUI=updateUI;
+    let savedLinkTypes=null;
+    let lastHeightMode=null;
+    const checkboxIds={isotope:'linkIsotope','beta-':'linkBetaMinus','beta+/ec':'linkBetaPlus',alpha:'linkAlpha',proton:'linkProton',neutron:'linkNeutron',delayed:'linkDelayed',fusion:'linkFusion'};
+    function setType(type,value){
+      if(typeof setLinkType==='function')setLinkType(type,value);
+      else if(S.linkTypes)S.linkTypes[type]=value;
+      const el=document.getElementById(checkboxIds[type]);
+      if(el)el.checked=!!value;
+    }
+    function abundanceLinkPreset(){
+      if(!S||!S.linkTypes)return;
+      const mode=S.heightMode;
+      if(mode===lastHeightMode)return;
+      lastHeightMode=mode;
+      if(mode==='abundance'){
+        if(!savedLinkTypes)savedLinkTypes=Object.assign({},S.linkTypes);
+        Object.keys(S.linkTypes).forEach(type=>setType(type,type==='isotope'));
+      }else if(savedLinkTypes){
+        Object.keys(savedLinkTypes).forEach(type=>setType(type,savedLinkTypes[type]));
+        savedLinkTypes=null;
+      }
+    }
+    nodeColor=function(n){return S.heightMode==='abundance'?elColor(n,false):oldNodeColor(n)};
+    floorColor=function(n){return S.heightMode==='abundance'?elColor(n,true):oldFloorColor(n)};
+    updateUI=function(){oldUpdateUI();abundanceLinkPreset();if(S.heightMode==='abundance')hud.innerHTML=hud.innerHTML.replace(/Height: <b>.*?<\\/b>/,'Height: <b>Natural abundance</b> · Color: <b>Element</b> · Links: <b>Isotopes only</b>')};
+    const selector=document.getElementById('heightMode');
+    if(selector)selector.addEventListener('change',()=>setTimeout(abundanceLinkPreset,0));
+    const b=document.createElement('div');b.textContent='ELEMENT COLOR '+BUILD_CODE;b.style.cssText='position:fixed;top:34px;right:10px;z-index:99;background:rgba(15,23,42,.9);border:1px solid rgba(250,204,21,.7);border-radius:10px;padding:5px 8px;color:#facc15;font:800 11px system-ui;letter-spacing:.06em;pointer-events:none';document.body.appendChild(b);
+    abundanceLinkPreset();
+  }
+  tryPatch();
+})();`;
+  doc.body.appendChild(s);
+}
+</script>
+</body>
+</html>
